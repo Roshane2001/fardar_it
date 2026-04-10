@@ -1,0 +1,1002 @@
+<?php
+// Start session at the very beginning
+session_start();
+
+// Check if user is logged in, if not redirect to login page
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    // Clear any existing output buffers
+    if (ob_get_level()) {
+        ob_end_clean();
+    }
+    header("Location: /fardar_it/dist/pages/login.php");
+    exit();
+}
+
+// Include the database connection file
+include($_SERVER['DOCUMENT_ROOT'] . '/fardar_it/dist/connection/db_connection.php');
+
+// Function to generate CSRF token
+function generateCSRFToken() {
+    if (!isset($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+// Get product ID from URL
+$product_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+
+if ($product_id <= 0) {
+    header("Location: products.php");
+    exit();
+}
+
+// Fetch existing product data
+$product = null;
+try {
+    $query = "SELECT * FROM products WHERE id = ? LIMIT 1";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("i", $product_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($result->num_rows === 0) {
+        header("Location: products.php");
+        exit();
+    }
+    
+    $product = $result->fetch_assoc();
+    $stmt->close();
+} catch (Exception $e) {
+    header("Location: products.php");
+    exit();
+}
+// Fetch all active categories + current category and its parent (in case they are inactive)
+$mainCategories = [];
+$subCategories = [];
+$prodCatId = intval($product['category_id']);
+
+try {
+    $catQuery = "SELECT id, name, parent_id FROM categories 
+                 WHERE status = 'active' 
+                 OR id = ? 
+                 OR id = (SELECT parent_id FROM categories WHERE id = ?)";
+    $catStmt = $conn->prepare($catQuery);
+    $catStmt->bind_param("ii", $prodCatId, $prodCatId);
+    $catStmt->execute();
+    $catRes = $catStmt->get_result();
+    
+    if ($catRes) {
+        while ($row = $catRes->fetch_assoc()) {
+            if (empty($row['parent_id']) || $row['parent_id'] == 0) {
+                $mainCategories[] = $row;
+            } else {
+                $subCategories[] = $row;
+            }
+        }
+    }
+    $catStmt->close();
+} catch (Exception $e) {
+    error_log("Error fetching categories: " . $e->getMessage());
+}
+
+// Determine current Main and Sub Category IDs
+$currentMainId = 0;
+$currentSubId = 0;
+$prodCatId = intval($product['category_id']);
+
+if ($prodCatId > 0) {
+    // Check if this category has a parent
+    $catCheck = $conn->prepare("SELECT id, parent_id FROM categories WHERE id = ? LIMIT 1");
+    $catCheck->bind_param("i", $prodCatId);
+    $catCheck->execute();
+    $catData = $catCheck->get_result()->fetch_assoc();
+    
+    if ($catData) {
+        if (!empty($catData['parent_id']) && $catData['parent_id'] != 0) {
+            $currentMainId = $catData['parent_id'];
+            $currentSubId = $catData['id'];
+        } else {
+            $currentMainId = $catData['id'];
+            $currentSubId = 0;
+        }
+    }
+}
+?>
+
+<!doctype html>
+<html lang="en" data-pc-preset="preset-1" data-pc-sidebar-caption="true" data-pc-direction="ltr" dir="ltr" data-pc-theme="light">
+
+<head>
+    <!-- TITLE -->
+    <title>Order Management Admin Portal - Edit Product</title>
+
+    <?php
+    include($_SERVER['DOCUMENT_ROOT'] . '/fardar_it/dist/include/head.php');
+    ?>
+    
+    <!-- [Template CSS Files] -->
+    <link rel="stylesheet" href="../assets/css/style.css" id="main-style-link" />
+    <link rel="stylesheet" href="../assets/css/products.css" id="main-style-link" />
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+ 
+    <!-- Custom CSS for AJAX notifications -->
+    <style>
+        .ajax-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            border-radius: 8px;
+            animation: slideInRight 0.3s ease-out;
+            border: 1px solid transparent;
+            padding: 1rem 1.5rem;
+            border-left: 4px solid;
+        }
+
+        /* Enhanced Bootstrap alert colors with gradients and left border */
+        .alert-success {
+            color: #0f5132;
+            background: linear-gradient(135deg, #f8f9fa 0%, #d1e7dd 100%);
+            border-left-color: #28a745;
+        }
+
+        .alert-danger {
+            color: #842029;
+            background: linear-gradient(135deg, #f8f9fa 0%, #f8d7da 100%);
+            border-left-color: #dc3545;
+        }
+
+        .alert-warning {
+            color: #664d03;
+            background: linear-gradient(135deg, #f8f9fa 0%, #fff3cd 100%);
+            border-left-color: #ffc107;
+        }
+
+        .alert-info {
+            color: #0c5460;
+            background: linear-gradient(135deg, #f8f9fa 0%, #d1ecf1 100%);
+            border-left-color: #17a2b8;
+        }
+
+        .alert .btn-close {
+            padding: 0.5rem 0.5rem;
+            position: absolute;
+            top: 0;
+            right: 0;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        .loading-spinner {
+            text-align: center;
+            color: white;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-top: 5px solid #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .select2-container--default .select2-selection--single {
+            height: 45px !important;
+            border: 1px solid #ced4da !important;
+            border-radius: 8px !important;
+            padding: 8px 12px !important;
+            display: flex;
+            align-items: center;
+            background-color: #fff !important;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: inherit !important;
+            color: #495057 !important;
+            padding-left: 0 !important;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 43px !important;
+            top: 1px !important;
+            right: 10px !important;
+        }
+        .select2-dropdown {
+            border: 1px solid #ced4da !important;
+            border-radius: 8px !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
+            z-index: 10001;
+        }
+
+        /* Integrated In-Field Search Styling */
+        .select2-container--open .select2-selection__rendered {
+            visibility: hidden;
+        }
+        .select2-container--open .select2-dropdown--below {
+            margin-top: -45px !important;
+            border-top: 1px solid #ced4da !important;
+        }
+        .select2-container--open .select2-dropdown--above {
+            margin-top: 45px !important;
+            border-bottom: 1px solid #ced4da !important;
+        }
+        .select2-search--dropdown {
+            padding: 0 !important;
+        }
+        .select2-search--dropdown .select2-search__field {
+            height: 44px !important;
+            padding: 8px 12px !important;
+            border: none !important;
+            border-bottom: 1px solid #ced4da !important;
+            border-radius: 8px 8px 0 0 !important;
+            outline: none !important;
+        }
+        .select2-container--default .select2-results__option--highlighted[aria-selected] {
+            background-color: #1565c0 !important;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- LOADER -->
+    <?php
+        include($_SERVER['DOCUMENT_ROOT'] . '/fardar_it/dist/include/loader.php');
+        include($_SERVER['DOCUMENT_ROOT'] . '/fardar_it/dist/include/navbar.php');
+        include($_SERVER['DOCUMENT_ROOT'] . '/fardar_it/dist/include/sidebar.php');
+    ?>
+    <!-- END LOADER -->
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <h5>Processing...</h5>
+            <p>Please wait while we update the product</p>
+        </div>
+    </div>
+
+    <!-- [ Main Content ] start -->
+    <div class="pc-container">
+        <div class="pc-content">
+            <!-- [ breadcrumb ] start -->
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="page-header-title">
+                        <h5 class="mb-0 font-medium">Edit Product</h5>
+                    </div>
+                </div>
+            </div>
+            <!-- [ breadcrumb ] end -->
+
+            <!-- [ Main Content ] start -->
+            <div class="main-container">
+                <form method="POST" id="editProductForm" class="product-form" novalidate>
+                    <!-- CSRF Token -->
+                    <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
+                    <!-- Product ID -->
+                    <input type="hidden" name="product_id" value="<?php echo $product['id']; ?>">
+                    
+                    <!-- Product Details Section -->
+                    <div class="form-section">
+                        <div class="section-content">
+                            <!-- First Row: Name and Status -->
+                            <div class="form-row">
+                                <div class="product-form-group">
+                                    <label for="name" class="form-label">
+                                        <i class="fas fa-box"></i> Product Name<span class="required">*</span>
+                                    </label>
+                                    <input type="text" class="form-control" id="name" name="name"
+                                        placeholder="Enter product name" required maxlength="255"
+                                        value="<?php echo htmlspecialchars($product['name']); ?>">
+                                    <div class="error-feedback" id="name-error"></div>
+                                </div>
+
+                                <div class="product-form-group">
+                                    <label for="status" class="form-label">
+                                        <i class="fas fa-toggle-on"></i> Status<span class="required">*</span>
+                                    </label>
+                                    <select class="form-select" id="status" name="status" required>
+                                        <option value="active" <?php echo $product['status'] === 'active' ? 'selected' : ''; ?>>Active</option>
+                                        <option value="inactive" <?php echo $product['status'] === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
+                                    </select>
+                                    <div class="error-feedback" id="status-error"></div>
+                                </div>
+                            </div>
+
+                            <!-- Second Row: Main Category and Sub Category -->
+                            <div class="form-row">
+                                <div class="product-form-group">
+                                    <label for="main_category_id" class="form-label">
+                                        <i class="fas fa-tags"></i> Main Category<span class="required">*</span>
+                                    </label>
+                                    <select class="form-select" id="main_category_id" name="main_category_id" data-placeholder="Search main category..." required>
+                                        <option value=""></option>
+                                        <?php foreach ($mainCategories as $cat): ?>
+                                            <option value="<?php echo $cat['id']; ?>" <?php echo $currentMainId == $cat['id'] ? 'selected' : ''; ?>>
+                                                <?php echo htmlspecialchars($cat['name']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <div class="error-feedback" id="main_category_id-error"></div>
+                                </div>
+
+                                <div class="product-form-group">
+                                    <label for="sub_category_id" class="form-label">
+                                        <i class="fas fa-level-down-alt"></i> Sub Category (Optional)
+                                    </label>
+                                    <select class="form-select" id="sub_category_id" name="sub_category_id" data-placeholder="Search sub category (optional)...">
+                                        <option value=""></option>
+                                        <!-- Will be populated by JS -->
+                                    </select>
+                                    <div class="error-feedback" id="sub_category_id-error"></div>
+                                </div>
+
+                                <!-- Actual category_id that will be submitted -->
+                                <input type="hidden" id="category_id" name="category_id" value="<?php echo $product['category_id']; ?>">
+                            </div>
+
+                            <!-- Second Row: Price and Product Code -->
+                            <div class="form-row">
+                                <div class="product-form-group">
+                                    <label for="lkr_price" class="form-label">
+                                        <i class="fas fa-rupee-sign"></i> Price (LKR)<span class="required">*</span>
+                                    </label>
+                                    <input type="number" class="form-control" id="lkr_price" name="lkr_price"
+                                        placeholder="0.00" required min="0"  step="0.01"
+                                        value="<?php echo number_format($product['lkr_price'], 2, '.', ''); ?>">
+                                    <div class="error-feedback" id="lkr_price-error"></div>
+                                    <div class="price-hint">Enter price in Sri Lankan Rupees (e.g., 1500.00)</div>
+                                </div>
+
+                                <div class="product-form-group">
+                                    <label for="product_code" class="form-label">
+                                        <i class="fas fa-barcode"></i> Product Code<span class="required">*</span>
+                                    </label>
+                                    <input type="text" class="form-control" id="product_code" name="product_code"
+                                        placeholder="Enter product code" required maxlength="50"
+                                        value="<?php echo htmlspecialchars($product['product_code']); ?>">
+                                    <div class="error-feedback" id="product_code-error"></div>
+                                    <div class="code-hint">Unique identifier for the product</div>
+                                </div>
+                            </div>
+
+                            <!-- Stock Quantity and Low Stock Threshold - only if enabled -->
+                            <?php if (isset($_SESSION['allow_inventory']) && $_SESSION['allow_inventory'] == 1): ?>
+                            <div class="form-row">
+                                <div class="product-form-group">
+                                    <label for="stock_quantity" class="form-label">
+                                        <i class="fas fa-cubes"></i> Stock Quantity<span class="required">*</span>
+                                    </label>
+                                    <input type="number" class="form-control" id="stock_quantity" name="stock_quantity"
+                                        placeholder="0" required min="0" step="1"
+                                        value="<?php echo (int)($product['stock_quantity'] ?? 0); ?>">
+                                    <div class="error-feedback" id="stock_quantity-error"></div>
+                                    <div class="code-hint">Current stock level</div>
+                                </div>
+
+                                <div class="product-form-group">
+                                    <label for="low_stock_threshold" class="form-label">
+                                        <i class="fas fa-exclamation-circle"></i> Low Stock Threshold<span class="required">*</span>
+                                    </label>
+                                    <input type="number" class="form-control" id="low_stock_threshold" name="low_stock_threshold"
+                                        placeholder="10" required min="0" step="1"
+                                        value="<?php echo (int)($product['low_stock_threshold'] ?? 10); ?>">
+                                    <div class="error-feedback" id="low_stock_threshold-error"></div>
+                                    <div class="code-hint">Minimum Stock Alert Level</div>
+                                </div>
+                            </div>
+                            <?php else: ?>
+                            <input type="hidden" name="stock_quantity" value="<?php echo (int)($product['stock_quantity'] ?? 0); ?>">
+                            <input type="hidden" name="low_stock_threshold" value="<?php echo (int)($product['low_stock_threshold'] ?? 0); ?>">
+                            <?php endif; ?>
+
+                          
+                          <!-- Third Row: Description -->
+                            <div class="form-row">
+                                <div class="product-form-group full-width">
+                                    <label for="description" class="form-label">
+                                        <i class="fas fa-align-left"></i> Description <span class="required">*</span>
+                                    </label>
+
+                                    <textarea class="form-control" id="description" name="description" rows="4"
+                                        placeholder="Enter product description" required><?php echo htmlspecialchars($product['description'] ?? ''); ?></textarea>
+
+                                    <div class="error-feedback" id="description-error"></div>
+
+                                    <div class="char-counter">
+                                        <span id="desc-char-count">0</span> characters
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Submit Buttons -->
+                    <div class="submit-container">
+                        <button type="submit" class="btn btn-primary" id="submitBtn">
+                            <i class="fas fa-save"></i> Update Product
+                        </button>
+                        <button type="button" class="btn btn-secondary ms-2" id="cancelBtn" onclick="window.location.href='product_list.php'">
+                            <i class="fas fa-times"></i> Back to Products
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <!-- [ Main Content ] end -->
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <?php
+    include($_SERVER['DOCUMENT_ROOT'] . '/fardar_it/dist/include/footer.php');
+    ?>
+    <!-- END FOOTER -->
+
+    <!-- SCRIPTS -->
+    <?php
+    include($_SERVER['DOCUMENT_ROOT'] . '/fardar_it/dist/include/scripts.php');
+    ?>
+    <!-- END SCRIPTS -->
+
+    <!-- jQuery (make sure this is loaded before your custom script) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script>
+        // Store original values for reset functionality
+        const originalValues = {
+            name: '<?php echo addslashes($product['name']); ?>',
+            status: '<?php echo $product['status']; ?>',
+            lkr_price: '<?php echo number_format($product['lkr_price'], 2, '.', ''); ?>',
+            product_code: '<?php echo addslashes($product['product_code']); ?>',
+            description: '<?php echo addslashes($product['description'] ?? ''); ?>',
+            category_id: '<?php echo $product['category_id']; ?>',
+            main_category_id: '<?php echo $currentMainId; ?>',
+            sub_category_id: '<?php echo $currentSubId; ?>'
+        };
+
+        // Categories data for JS logic
+        const subCategories = <?php echo json_encode($subCategories); ?>;
+        const initialMainId = <?php echo $currentMainId; ?>;
+        const initialSubId = <?php echo $currentSubId; ?>;
+
+        $(document).ready(function() {
+            // Initialize Select2 for categories with placeholder refinement
+            $('#main_category_id, #sub_category_id').select2({
+                placeholder: function() {
+                    return $(this).data('placeholder');
+                },
+                allowClear: true,
+                width: '100%'
+            }).on('select2:open', function(e) {
+                // Focus the search field immediately and set its placeholder
+                const placeholder = $(this).data('placeholder') || 'Search...';
+                const searchField = document.querySelector('.select2-search__field');
+                if (searchField) {
+                    searchField.placeholder = placeholder;
+                    searchField.focus();
+                }
+            });
+
+            // Initialize Sub Category dropdown if Main is selected
+            if (initialMainId) {
+                populateSubCategories(initialMainId, initialSubId);
+            }
+            // Initialize form
+            initializeForm();
+            
+            // AJAX Form submission
+            $('#editProductForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                // Clear previous validations
+                clearAllValidations();
+                
+                // Validate form
+                if (validateForm()) {
+                    submitFormAjax();
+                } else {
+                    // Scroll to first error
+                    scrollToFirstError();
+                }
+            });
+            
+            // Reset button
+            $('#resetBtn').on('click', function() {
+                resetForm();
+            });
+            
+            // Real-time validation
+            setupRealTimeValidation();
+            
+            // Other event listeners
+            setupEventListeners();
+        });
+
+        // AJAX Form Submission Function
+        function submitFormAjax() {
+            // Show loading overlay
+            showLoading();
+            
+            // Disable submit button
+            const $submitBtn = $('#submitBtn');
+            const originalText = $submitBtn.html();
+            $submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Updating Product...');
+            
+            // Prepare form data
+            const formData = new FormData($('#editProductForm')[0]);
+            
+            // AJAX request
+            $.ajax({
+                url: 'update_product.php',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                dataType: 'json',
+                timeout: 30000, // 30 seconds timeout
+                success: function(response) {
+                    hideLoading();
+                    $submitBtn.prop('disabled', false).html(originalText);
+                    
+                    if (response.success) {
+                        showSuccessNotification(response.message || 'Product updated successfully!');
+                        
+                        // Update original values with new values for reset functionality
+                        updateOriginalValues();
+                    } else {
+                        if (response.errors) {
+                            // Show field-specific errors
+                            showFieldErrors(response.errors);
+                        }
+                        
+                        showErrorNotification(response.message || 'Failed to update product. Please try again.');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    hideLoading();
+                    $submitBtn.prop('disabled', false).html(originalText);
+                    
+                    let errorMessage = 'An error occurred while updating the product.';
+                    
+                    if (status === 'timeout') {
+                        errorMessage = 'Request timeout. Please try again.';
+                    } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage = xhr.responseJSON.message;
+                    } else if (xhr.status === 500) {
+                        errorMessage = 'Server error. Please contact administrator.';
+                    } else if (xhr.status === 0) {
+                        errorMessage = 'No internet connection. Please check your connection.';
+                    }
+                    
+                    showErrorNotification(errorMessage);
+                    console.error('AJAX Error:', {
+                        status: xhr.status,
+                        statusText: xhr.statusText,
+                        responseText: xhr.responseText,
+                        error: error
+                    });
+                }
+            });
+        }
+        
+        // Update original values after successful update
+        function updateOriginalValues() {
+            originalValues.name = $('#name').val();
+            originalValues.status = $('#status').val();
+            originalValues.lkr_price = $('#lkr_price').val();
+            originalValues.product_code = $('#product_code').val();
+            originalValues.description = $('#description').val();
+            originalValues.category_id = $('#category_id').val();
+            originalValues.main_category_id = $('#main_category_id').val();
+            originalValues.sub_category_id = $('#sub_category_id').val();
+        }
+        
+        // Show field-specific errors from server
+        function showFieldErrors(errors) {
+            $.each(errors, function(field, message) {
+                // Map category_id error to main_category_id field
+                if (field === 'category_id') {
+                    showError('main_category_id', message);
+                } else {
+                    showError(field, message);
+                }
+            });
+        }
+        
+        // Loading functions
+        function showLoading() {
+            $('#loadingOverlay').css('display', 'flex');
+            $('body').css('overflow', 'hidden');
+        }
+        
+        function hideLoading() {
+            $('#loadingOverlay').hide();
+            $('body').css('overflow', 'auto');
+        }
+        
+        // Notification functions
+        function showSuccessNotification(message) {
+            showNotification(message, 'success');
+        }
+        
+        function showErrorNotification(message) {
+            showNotification(message, 'danger');
+        }
+        
+        function showWarningNotification(message) {
+            showNotification(message, 'warning');
+        }
+        
+        function showNotification(message, type) {
+            const notificationId = 'notification_' + Date.now();
+            const alertClasses = {
+                'success': 'alert-success',
+                'danger': 'alert-danger',
+                'warning': 'alert-warning'
+            };
+            
+            const iconClass = type === 'success' ? 'fas fa-check-circle' : 
+                            type === 'danger' ? 'fas fa-exclamation-circle' : 
+                            'fas fa-exclamation-triangle';
+            
+            const notification = `
+                <div class="alert ${alertClasses[type]} alert-dismissible fade show ajax-notification" id="${notificationId}" role="alert">
+                    <div class="d-flex align-items-center">
+                        <i class="${iconClass} me-2"></i>
+                        <div>${message}</div>
+                    </div>
+                    <button type="button" class="btn-close" onclick="hideNotification('${notificationId}')" aria-label="Close"></button>
+                </div>
+            `;
+            
+            $('body').append(notification);
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                hideNotification(notificationId);
+            }, 5000);
+        }
+        
+        function hideNotification(notificationId) {
+            const $notification = $('#' + notificationId);
+            if ($notification.length) {
+                $notification.addClass('hide');
+                setTimeout(() => {
+                    $notification.remove();
+                }, 300);
+            }
+        }
+        
+        // Form reset function - restore original values
+        function resetForm() {
+            $('#name').val(originalValues.name);
+            $('#status').val(originalValues.status);
+            $('#lkr_price').val(originalValues.lkr_price);
+            $('#product_code').val(originalValues.product_code);
+            $('#description').val(originalValues.description);
+            $('#main_category_id').val(originalValues.main_category_id);
+            populateSubCategories(originalValues.main_category_id, originalValues.sub_category_id);
+            $('#category_id').val(originalValues.category_id);
+            
+            // Refresh Select2
+            $('#main_category_id, #sub_category_id, #status').trigger('change');
+            
+            clearAllValidations();
+            updateCharCount();
+            $('#name').focus();
+        }
+        
+        // Clear all validations
+        function clearAllValidations() {
+            $('.form-control, .form-select').removeClass('is-valid is-invalid field-error field-success');
+            $('.error-feedback').hide().text('');
+        }
+        
+        // Scroll to first error
+        function scrollToFirstError() {
+            const $firstError = $('.is-invalid, .field-error').first();
+            if ($firstError.length) {
+                $('html, body').animate({
+                    scrollTop: $firstError.offset().top - 100
+                }, 500);
+                $firstError.focus();
+            }
+        }
+        
+        // Initialize form
+        function initializeForm() {
+            $('#name').focus();
+            updateCharCount();
+        }
+        
+        // Setup real-time validation
+        function setupRealTimeValidation() {
+            $('#name').on('blur', function() {
+                const validation = validateName($(this).val());
+                if (!validation.valid) {
+                    showError('name', validation.message);
+                } else {
+                    showSuccess('name');
+                }
+            });
+            
+            $('#lkr_price').on('blur', function() {
+                const validation = validatePrice($(this).val());
+                if (!validation.valid) {
+                    showError('lkr_price', validation.message);
+                } else {
+                    showSuccess('lkr_price');
+                }
+            });
+            
+            $('#product_code').on('blur', function() {
+                const validation = validateProductCode($(this).val());
+                if (!validation.valid) {
+                    showError('product_code', validation.message);
+                } else {
+                    showSuccess('product_code');
+                }
+            });
+            
+            $('#description').on('blur', function() {
+                const validation = validateDescription($(this).val());
+                if (!validation.valid) {
+                    showError('description', validation.message);
+                } else if ($(this).val().trim() !== '') {
+                    showSuccess('description');
+                } else {
+                    clearValidation('description');
+                }
+            });
+
+            $('#main_category_id').on('change', function() {
+                const mainId = $(this).val();
+                populateSubCategories(mainId);
+                
+                if (mainId) {
+                    showSuccess('main_category_id');
+                } else {
+                    showError('main_category_id', 'Please select a main category');
+                }
+            });
+
+            $('#sub_category_id').on('change', function() {
+                updateFinalCategoryId();
+            });
+        }
+
+        function populateSubCategories(mainId, selectedSubId = 0) {
+            const $subSelect = $('#sub_category_id');
+            $subSelect.html('<option value=""></option>');
+            
+            if (mainId) {
+                const filteredSubs = subCategories.filter(sub => sub.parent_id == mainId);
+                filteredSubs.forEach(sub => {
+                    const selected = (sub.id == selectedSubId) ? 'selected' : '';
+                    $subSelect.append(`<option value="${sub.id}" ${selected}>${sub.name}</option>`);
+                });
+            }
+            
+            // Refresh Select2 for sub category
+            $subSelect.trigger('change');
+            
+            updateFinalCategoryId();
+        }
+
+        function updateFinalCategoryId() {
+            const mainId = $('#main_category_id').val();
+            const subId = $('#sub_category_id').val();
+            
+            // Final value is sub_id if selected, else main_id
+            const finalId = subId ? subId : mainId;
+            $('#category_id').val(finalId);
+        }
+        
+        // Setup other event listeners
+        function setupEventListeners() {
+            // Character counter for description
+            $('#description').on('input', function() {
+                updateCharCount();
+                if ($(this).hasClass('is-invalid')) {
+                    clearValidation('description');
+                }
+            });
+
+            // Prevent form submission on Enter key in input fields
+            $('input:not([type="submit"])').on('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const $inputs = $('input, select, textarea');
+                    const currentIndex = $inputs.index(this);
+                    if (currentIndex < $inputs.length - 1) {
+                        $inputs.eq(currentIndex + 1).focus();
+                    }
+                }
+            });
+        }
+
+        // Character counter for description
+        function updateCharCount() {
+            const textarea = $('#description');
+            const counter = $('#desc-char-count');
+            if (textarea.length && counter.length) {
+                counter.text(textarea.val().length);
+            }
+        }
+
+        // Validation functions
+        function validateName(name) {
+            if (name.trim() === '') {
+                return { valid: false, message: 'Product name is required' };
+            }
+            if (name.trim().length < 2) {
+                return { valid: false, message: 'Product name must be at least 2 characters long' };
+            }
+            if (name.length > 255) {
+                return { valid: false, message: 'Product name is too long (maximum 255 characters)' };
+            }
+            return { valid: true, message: '' };
+        }
+
+        function validateCategory(categoryId) {
+            const mainId = $('#main_category_id').val();
+            if (!mainId) {
+                return { valid: false, message: 'Please select a main category' };
+            }
+            return { valid: true, message: '' };
+        }
+
+        function validatePrice(price) {
+            if (price.trim() === '' || isNaN(price)) {
+                return { valid: false, message: 'Price is required and must be a valid number' };
+            }
+            
+            const numPrice = parseFloat(price);
+            
+            if (numPrice < 0) {
+                return { valid: false, message: 'Price cannot be negative' };
+            }
+            
+            if (numPrice > 99999999.99) {
+                return { valid: false, message: 'Price is too high (maximum 99,999,999.99)' };
+            }
+            
+            // Check for too many decimal places
+            if (price.includes('.') && price.split('.')[1].length > 2) {
+                return { valid: false, message: 'Price can have maximum 2 decimal places' };
+            }
+            
+            return { valid: true, message: '' };
+        }
+
+        function validateProductCode(code) {
+            if (code.trim() === '') {
+                return { valid: false, message: 'Product code is required' };
+            }
+            
+            if (code.trim().length < 2) {
+                return { valid: false, message: 'Product code must be at least 2 characters long' };
+            }
+            
+            if (code.length > 50) {
+                return { valid: false, message: 'Product code is too long (maximum 50 characters)' };
+            }
+            
+            // Allow alphanumeric, hyphens, underscores
+            if (!/^[a-zA-Z0-9\-_]+$/.test(code.trim())) {
+                return { valid: false, message: 'Product code can only contain letters, numbers, hyphens, and underscores' };
+            }
+            
+            return { valid: true, message: '' };
+        }
+            function validateDescription(desc) {
+                if (desc.trim() === '') {
+                    return { valid: false, message: 'Description is required' };
+                }
+                if (desc.length < 5) {
+                    return { valid: false, message: 'Description must be at least 5 characters long' };
+                }
+                return { valid: true, message: '' };
+            }
+
+
+        // Show/hide error functions
+        function showError(fieldId, message) {
+            const $field = $('#' + fieldId);
+            const $errorDiv = $('#' + fieldId + '-error');
+            
+            if ($field.length && $errorDiv.length) {
+                $field.addClass('is-invalid field-error').removeClass('is-valid field-success');
+                $errorDiv.text(message).show();
+            }
+        }
+
+        function showSuccess(fieldId) {
+            const $field = $('#' + fieldId);
+            const $errorDiv = $('#' + fieldId + '-error');
+            
+            if ($field.length && $errorDiv.length) {
+                $field.addClass('is-valid field-success').removeClass('is-invalid field-error');
+                $errorDiv.hide();
+            }
+        }
+
+        function clearValidation(fieldId) {
+            const $field = $('#' + fieldId);
+            const $errorDiv = $('#' + fieldId + '-error');
+            
+            if ($field.length && $errorDiv.length) {
+                $field.removeClass('is-valid is-invalid field-error field-success');
+                $errorDiv.hide();
+            }
+        }
+
+        // Form validation
+        function validateForm() {
+            let isValid = true;
+            
+            // Get all field values
+            const name = $('#name').val();
+            const price = $('#lkr_price').val();
+            const productCode = $('#product_code').val();
+            const description = $('#description').val();
+            
+            // Validate required fields
+            const validations = [
+                { field: 'name', validator: validateName, value: name },
+                { field: 'lkr_price', validator: validatePrice, value: price },
+                { field: 'product_code', validator: validateProductCode, value: productCode },
+                { field: 'description', validator: validateDescription, value: description },
+                { field: 'main_category_id', validator: validateCategory, value: $('#category_id').val() }
+            ];
+            
+            validations.forEach(function(validation) {
+                const result = validation.validator(validation.value);
+                if (!result.valid) {
+                    showError(validation.field, result.message);
+                    isValid = false;
+                } else if (validation.field === 'description' && validation.value.trim() !== '') {
+                    showSuccess(validation.field);
+                } else if (validation.field !== 'description') {
+                    showSuccess(validation.field);
+                }
+            });
+            
+            return isValid;
+        }
+    </script>
+</body>
+</html>
