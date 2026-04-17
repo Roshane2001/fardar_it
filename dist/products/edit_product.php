@@ -381,10 +381,10 @@ if ($prodCatId > 0) {
 
                                 <div class="product-form-group">
                                     <label for="product_code" class="form-label">
-                                        <i class="fas fa-barcode"></i> Product Code<span class="required">*</span>
+                                        <i class="fas fa-barcode"></i> Asset No
                                     </label>
                                     <input type="text" class="form-control" id="product_code" name="product_code"
-                                        placeholder="Enter product code" required maxlength="50"
+                                        placeholder="Enter asset no (optional)" maxlength="50"
                                         value="<?php echo htmlspecialchars($product['product_code']); ?>">
                                     <div class="error-feedback" id="product_code-error"></div>
                                     <div class="code-hint">Unique identifier for the product</div>
@@ -904,7 +904,7 @@ if ($prodCatId > 0) {
 
         function validateProductCode(code) {
             if (code.trim() === '') {
-                return { valid: false, message: 'Product code is required' };
+                return { valid: true, message: '' };
             }
             
             if (code.trim().length < 2) {

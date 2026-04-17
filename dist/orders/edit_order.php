@@ -38,7 +38,7 @@ function checkCourierStatus($conn) {
     $courierSql = "SELECT courier_id, courier_name, api_key, client_id, is_default, status 
                    FROM couriers 
                    WHERE is_default IN (1, 2, 3) AND status = 'active' 
-                   ORDER BY is_default ASC 
+                   ORDER BY is_default DESC 
                    LIMIT 1";
     $courierResult = $conn->query($courierSql);
     

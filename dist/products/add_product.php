@@ -40,6 +40,19 @@ try {
 } catch (Exception $e) {
     error_log("Error fetching categories: " . $e->getMessage());
 }
+
+// Fetch all suppliers for the dropdown
+$suppliers = [];
+try {
+    $supRes = $conn->query("SELECT id, sup_company_name FROM suplier WHERE status_sup = 'active' ORDER BY sup_company_name ASC");
+    if ($supRes) {
+        while ($row = $supRes->fetch_assoc()) {
+            $suppliers[] = $row;
+        }
+    }
+} catch (Exception $e) {
+    error_log("Error fetching suppliers: " . $e->getMessage());
+}
 ?>
 
 <!doctype html>
@@ -311,12 +324,26 @@ try {
 
                                 <div class="product-form-group">
                                     <label for="product_code" class="form-label">
-                                        <i class="fas fa-barcode"></i> Product Code<span class="required">*</span>
+                                        <i class="fas fa-barcode"></i> Asset No
                                     </label>
                                     <input type="text" class="form-control" id="product_code" name="product_code"
-                                        placeholder="Enter product code" required maxlength="50">
+                                        placeholder="Enter asset no (optional)" maxlength="50">
                                     <div class="error-feedback" id="product_code-error"></div>
                                     <div class="code-hint">Unique identifier for the product</div>
+                                    
+                                </div>
+
+                                <div class="product-form-group">
+                                    <label for="suplier_id" class="form-label">
+                                        <i class="fas fa-truck"></i> Supplier<span class="required">*</span>
+                                    </label>
+                                    <select class="form-select" id="suplier_id" name="suplier_id" data-placeholder="Search supplier..." required>
+                                        <option value=""></option>
+                                        <?php foreach ($suppliers as $sup): ?>
+                                            <option value="<?php echo $sup['id']; ?>"><?php echo htmlspecialchars($sup['sup_company_name']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <div class="error-feedback" id="suplier_id-error"></div>
                                 </div>
                             </div>
 
@@ -402,7 +429,7 @@ try {
         const subCategories = <?php echo json_encode($subCategories); ?>;
         $(document).ready(function() {
             // Initialize Select2 for categories with placeholder refinement
-            $('#main_category_id, #sub_category_id').select2({
+            $('#main_category_id, #sub_category_id, #suplier_id').select2({
                 placeholder: function() {
                     return $(this).data('placeholder');
                 },
@@ -664,6 +691,15 @@ try {
                 }
             });
 
+            $('#suplier_id').on('change', function() {
+                const supId = $(this).val();
+                if (supId) {
+                    showSuccess('suplier_id');
+                } else {
+                    showError('suplier_id', 'Please select a supplier');
+                }
+            });
+
             $('#main_category_id').on('change', function() {
                 const mainId = $(this).val();
                 
@@ -778,9 +814,16 @@ try {
             return { valid: true, message: '' };
         }
 
+        function validateSupplier(supplierId) {
+            if (!supplierId || supplierId <= 0) {
+                return { valid: false, message: 'Please select a supplier' };
+            }
+            return { valid: true, message: '' };
+        }
+
         function validateProductCode(code) {
             if (code.trim() === '') {
-                return { valid: false, message: 'Product code is required' };
+                return { valid: true, message: '' };
             }
             
             if (code.trim().length < 2) {
@@ -855,6 +898,7 @@ try {
             const price = $('#lkr_price').val();
             const productCode = $('#product_code').val();
             const description = $('#description').val();
+            const supplierId = $('#suplier_id').val();
             
             // Validate required fields
             const validations = [
@@ -862,7 +906,8 @@ try {
                 { field: 'lkr_price', validator: validatePrice, value: price },
                 { field: 'product_code', validator: validateProductCode, value: productCode },
                 { field: 'description', validator: validateDescription, value: description },
-                { field: 'main_category_id', validator: validateCategory, value: $('#category_id').val() }
+                { field: 'main_category_id', validator: validateCategory, value: $('#category_id').val() },
+                { field: 'suplier_id', validator: validateSupplier, value: supplierId }
             ];
             
             validations.forEach(function(validation) {

@@ -307,7 +307,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         // COURIER AND TRACKING ASSIGNMENT WITH ENHANCED FDE API
         // Get default courier (can be is_default = 1, 2, or 3)
-        $getDefaultCourierSql = "SELECT courier_id, courier_name, api_key, client_id, is_default FROM couriers WHERE is_default IN (1, 2, 3) AND status = 'active' ORDER BY is_default ASC LIMIT 1";
+        $getDefaultCourierSql = "SELECT courier_id, courier_name, api_key, client_id, is_default FROM couriers WHERE is_default IN (1, 2, 3) AND status = 'active' ORDER BY is_default DESC LIMIT 1";
         $courierResult = $conn->query($getDefaultCourierSql);
 
         $tracking_assigned = false;

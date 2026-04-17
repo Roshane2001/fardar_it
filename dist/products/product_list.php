@@ -201,9 +201,9 @@ $result = $conn->query($sql);
                         </div>
                         
                         <div class="form-group">
-                            <label for="product_code_filter">Product Code</label>
+                            <label for="product_code_filter">Asset No</label>
                             <input type="text" id="product_code_filter" name="product_code_filter" 
-                                   placeholder="Enter product code" 
+                                   placeholder="Enter asset no" 
                                    value="<?php echo htmlspecialchars($product_code_filter); ?>">
                         </div>
                         
@@ -295,7 +295,7 @@ $result = $conn->query($sql);
                                 <th>ID</th>
                                 <th>Product Name</th>
                                 <th>Category</th>
-                                <th>Product Code</th>
+                                <th>Asset No</th>  <!--<th>Asset No</th>-->
                                 <!-- <th>Description</th> -->
                                 <th>Price (LKR)</th>
                                 <?php if (isset($_SESSION['allow_inventory']) && $_SESSION['allow_inventory'] == 1): ?>

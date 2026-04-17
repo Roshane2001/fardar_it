@@ -37,7 +37,7 @@ function checkCourierStatus($conn) {
     $courierSql = "SELECT courier_id, courier_name, api_key, client_id, is_default, status 
                    FROM couriers 
                    WHERE is_default IN (1, 2, 3) AND status = 'active' 
-                   ORDER BY is_default ASC 
+                   ORDER BY is_default DESC 
                    LIMIT 1";
     $courierResult = $conn->query($courierSql);
     
@@ -395,11 +395,11 @@ if ($deliveryFeeResult && $deliveryFeeResult->num_rows > 0) {
                                 <label class="form-label">Status</label>
                                 <div class="status-radio-group">
                                     <div class="radio-option">
-                                        <input type="radio" name="order_status" value="Paid" id="status_paid">
+                                        <input type="radio" name="order_status" value="Paid" id="status_paid" checked>
                                         <label for="status_paid">Paid</label>
                                     </div>
                                     <div class="radio-option">
-                                        <input type="radio" name="order_status" value="Unpaid" id="status_unpaid" checked>
+                                        <input type="radio" name="order_status" value="Unpaid" id="status_unpaid">
                                         <label for="status_unpaid">Unpaid</label>
                                     </div>
                                 </div>

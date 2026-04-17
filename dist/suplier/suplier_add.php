@@ -1,5 +1,35 @@
+<?php
+// Start session at the very beginning
+session_start();
+
+// Include the database connection file FIRST
+include($_SERVER['DOCUMENT_ROOT'] . '/fardar_it/dist/connection/db_connection.php');
+
+// Check if user is logged in, if not redirect to login page
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    if (ob_get_level()) {
+        ob_end_clean();
+    }
+    header("Location: /fardar_it/dist/pages/login.php");
+    exit();
+}
+
+// Get user's role from database to ensure sidebar has the data it needs
+$user_id = $_SESSION['user_id'];
+$role_check_sql = "SELECT u.role_id FROM users u WHERE u.id = ? AND u.status = 'active'";
+$role_stmt = $conn->prepare($role_check_sql);
+$role_stmt->bind_param("i", $user_id);
+$role_stmt->execute();
+$role_result = $role_stmt->get_result();
+
+if ($role_result->num_rows === 0) {
+    header("Location: /fardar_it/dist/pages/login.php");
+    exit();
+}
+?>
 <!doctype html>
-<html lang="en" data-pc-preset="preset-1" data-pc-sidebar-caption="true" data-pc-direction="ltr" dir="ltr" data-pc-theme="light">
+<html lang="en" data-pc-preset="preset-1" data-pc-sidebar-caption="true" data-pc-direction="ltr" dir="ltr"
+    data-pc-theme="light">
 
 <head>
     <!-- TITLE -->
@@ -8,129 +38,137 @@
     <?php
     include($_SERVER['DOCUMENT_ROOT'] . '/fardar_it/dist/include/head.php');
     ?>
-    
+
     <!-- [Template CSS Files] -->
     <link rel="stylesheet" href="../assets/css/style.css" id="main-style-link" />
     <link rel="stylesheet" href="../assets/css/customers.css" id="main-style-link" />
-    
+
     <!-- Custom CSS for AJAX notifications -->
-   <style>
-.ajax-notification {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 9999;
-    max-width: 400px;
-    margin-bottom: 10px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-    border-radius: 8px;
-    animation: slideInRight 0.3s ease-out;
-    border: 1px solid transparent;
-    padding: 1rem 1.5rem;
-    border-left: 4px solid; /* Add this line */
-}
-
-/* Enhanced Bootstrap alert colors with gradients and left border */
-.alert-success {
-    color: #0f5132;
-    background: linear-gradient(135deg, #f8f9fa 0%, #d1e7dd 100%);
-    /* border-color: #badbcc; */
-    border-left-color: #28a745;
-}
-
-.alert-danger {
-    color: #842029;
-    background: linear-gradient(135deg, #f8f9fa 0%, #f8d7da 100%);
-    /* border-color: #f5c2c7; */
-    border-left-color: #dc3545;
-}
-
-.alert-warning {
-    color: #664d03;
-    background: linear-gradient(135deg, #f8f9fa 0%, #fff3cd 100%);
-    /* border-color: #ffecb5; */
-    border-left-color: #ffc107;
-}
-
-/* Add info style if you need it */
-.alert-info {
-    color: #0c5460;
-    background: linear-gradient(135deg, #f8f9fa 0%, #d1ecf1 100%);
-    /* border-color: #bee5eb; */
-    border-left-color: #17a2b8;
-}
-
-/* Ensure close button is properly styled */
-.alert .btn-close {
-    padding: 0.5rem 0.5rem;
-    position: absolute;
-    top: 0;
-    right: 0;
-}
-.loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 10000;
-        }
-
-        .loading-spinner {
-            text-align: center;
-            color: white;
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid rgba(255, 255, 255, 0.3);
-            border-top: 5px solid #fff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-@keyframes slideInRight {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
+    <style>
+    .ajax-notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        max-width: 400px;
+        margin-bottom: 10px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        border-radius: 8px;
+        animation: slideInRight 0.3s ease-out;
+        border: 1px solid transparent;
+        padding: 1rem 1.5rem;
+        border-left: 4px solid;
+        /* Add this line */
     }
-    to {
-        transform: translateX(0);
-        opacity: 1;
+
+    /* Enhanced Bootstrap alert colors with gradients and left border */
+    .alert-success {
+        color: #0f5132;
+        background: linear-gradient(135deg, #f8f9fa 0%, #d1e7dd 100%);
+        /* border-color: #badbcc; */
+        border-left-color: #28a745;
     }
-}
 
-.password-input-group {
-    position: relative;
-}
+    .alert-danger {
+        color: #842029;
+        background: linear-gradient(135deg, #f8f9fa 0%, #f8d7da 100%);
+        /* border-color: #f5c2c7; */
+        border-left-color: #dc3545;
+    }
 
-.password-toggle {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: #6c757d;
-    cursor: pointer;
-    padding: 5px;
-}
+    .alert-warning {
+        color: #664d03;
+        background: linear-gradient(135deg, #f8f9fa 0%, #fff3cd 100%);
+        /* border-color: #ffecb5; */
+        border-left-color: #ffc107;
+    }
 
-.password-toggle:hover {
-    color: #495057;
-}
-</style>
+    /* Add info style if you need it */
+    .alert-info {
+        color: #0c5460;
+        background: linear-gradient(135deg, #f8f9fa 0%, #d1ecf1 100%);
+        /* border-color: #bee5eb; */
+        border-left-color: #17a2b8;
+    }
+
+    /* Ensure close button is properly styled */
+    .alert .btn-close {
+        padding: 0.5rem 0.5rem;
+        position: absolute;
+        top: 0;
+        right: 0;
+    }
+
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+    }
+
+    .loading-spinner {
+        text-align: center;
+        color: white;
+    }
+
+    .spinner {
+        width: 50px;
+        height: 50px;
+        border: 5px solid rgba(255, 255, 255, 0.3);
+        border-top: 5px solid #fff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .password-input-group {
+        position: relative;
+    }
+
+    .password-toggle {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: #6c757d;
+        cursor: pointer;
+        padding: 5px;
+    }
+
+    .password-toggle:hover {
+        color: #495057;
+    }
+    </style>
 </head>
 
 <body>
@@ -147,7 +185,7 @@
         <div class="loading-spinner">
             <div class="spinner"></div>
             <h5>Processing...</h5>
-            <p>Please wait while we add the user</p>
+            <p>Please wait while we add the supplier</p>
         </div>
     </div>
 
@@ -158,7 +196,7 @@
             <div class="page-header">
                 <div class="page-block">
                     <div class="page-header-title">
-                        <h5 class="mb-0 font-medium">Add New User</h5>
+                        <h5 class="mb-0 font-medium">Add New Supplier</h5>
                     </div>
                 </div>
             </div>
@@ -166,66 +204,38 @@
 
             <!-- [ Main Content ] start -->
             <div class="main-container">
-                <!-- Add User Form -->
-                <form method="POST" id="addUserForm" class="customer-form" novalidate>
+                <!-- Add Suplier Form -->
+                <form method="POST" id="addSuplierForm" class="customer-form" novalidate>
                     <!-- CSRF Token -->
                     <!-- <input type="hidden" name="csrf_token" value="<?php //echo generateCSRFToken(); ?>">
                      -->
-                    <!-- User Details Section -->
+                    <!-- Supplier Details Section -->
                     <div class="form-section">
                         <div class="section-content">
-                            <!-- First Row: Full Name and Email -->
                             <div class="form-row">
                                 <div class="customer-form-group">
-                                    <label for="full_name" class="form-label">
+                                    <label for="sup_company_name" class="form-label">
                                         <i class="fas fa-user"></i> Company Name<span class="required">*</span>
                                     </label>
-                                    <input type="text" class="form-control" id="full_name" name="full_name"
+                                    <input type="text" class="form-control" id="sup_company_name" name="sup_company_name"
                                         placeholder="Enter supplier's company name" required>
-                                    <div class="error-feedback" id="full_name-error"></div>
-                                </div>
-                                
-                                <div class="form-section">
-                        <div class="section-content">
-                            <!-- First Row: Full Name and Email -->
-                            <div class="form-row">
-                                <div class="customer-form-group">
-                                    <label for="full_name" class="form-label">
-                                        <i class="fas fa-user"></i> Responsibility Person Name<span class="required">*</span>
-                                    </label>
-                                    <input type="text" class="form-control" id="full_name" name="full_name"
-                                        placeholder="Enter responsibility person's name" required>
-                                    <div class="error-feedback" id="full_name-error"></div>
-                                </div>
-
-                                <div class="customer-form-group">
-                                    <label for="email" class="form-label">
-                                        <i class="fas fa-envelope"></i> Company Email Address<span class="required">*</span>
-                                    </label>
-                                    <input type="email" class="form-control" id="email" name="email"
-                                        placeholder="company@example.com" required>
-                                    <div class="error-feedback" id="email-error"></div>
-                                    <div class="email-suggestions" id="email-suggestions"></div>
+                                    <div class="error-feedback" id="sup_company_name-error"></div>
                                 </div>
                             </div>
 
-                            <!-- Second Row: Password and Mobile -->
                             <div class="form-row">
                                 <div class="customer-form-group">
-                                    <label for="password" class="form-label">
-                                        <i class="fas fa-lock"></i> Password<span class="required">*</span>
+                                    <label for="person_name" class="form-label">
+                                        <i class="fas fa-user"></i> Responsibility Person Name<span
+                                            class="required">*</span>
                                     </label>
-                                    <div class="password-input-group">
-                                        <input type="password" class="form-control" id="password" name="password"
-                                            placeholder="Enter secure password" required>
-                                        <button type="button" class="password-toggle" id="togglePassword">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
-                                    </div>
-                                    <div class="error-feedback" id="password-error"></div>
-                                    <div class="password-strength" id="password-strength"></div>
+                                    <input type="text" class="form-control" id="person_name" name="person_name"
+                                        placeholder="Enter responsibility person's name" required>
+                                    <div class="error-feedback" id="person_name-error"></div>
                                 </div>
+                            </div>
 
+                            <div class="form-row">
                                 <div class="customer-form-group">
                                     <label for="mobile" class="form-label">
                                         <i class="fas fa-mobile-alt"></i> Mobile Number<span class="required">*</span>
@@ -237,18 +247,17 @@
                                 </div>
                             </div>
 
-                          
-                                <div class="customer-form-group">
-                                    <label for="status" class="form-label">
-                                        <i class="fas fa-toggle-on"></i> Status<span class="required">*</span>
-                                    </label>
-                                    <select class="form-select" id="status" name="status" required>
-                                        <option value="Active" selected>Active</option>
-                                        <option value="Inactive">Inactive</option>
-                                    </select>
-                                    <div class="error-feedback" id="status-error"></div>
-                                </div>
+                            <div class="customer-form-group">
+                                <label for="status" class="form-label">
+                                    <i class="fas fa-toggle-on"></i> Status<span class="required">*</span>
+                                </label>
+                                <select class="form-select" id="status" name="status" required>
+                                    <option value="Active" selected>Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                </select>
+                                <div class="error-feedback" id="status-error"></div>
                             </div>
+
 
                             <!-- Fourth Row: Address and Role -->
                             <div class="form-row">
@@ -260,8 +269,10 @@
                                         placeholder="Enter complete address" required></textarea>
                                     <div class="error-feedback" id="address-error"></div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
 
-                                
                     <!-- Submit Buttons -->
                     <div class="submit-container">
                         <button type="submit" class="btn btn-primary" id="submitBtn">
@@ -277,7 +288,8 @@
         </div>
     </div>
 
- 
+    
+
 
     <!-- FOOTER -->
     <?php
@@ -295,589 +307,503 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 
     <script>
-        $(document).ready(function() {
-            // Initialize form
-            initializeForm();
-            
-            // AJAX Form submission
-            $('#addUserForm').on('submit', function(e) {
-                e.preventDefault();
-                
-                // Clear previous validations
-                clearAllValidations();
-                
-                // Validate form
-                if (validateForm()) {
-                    submitFormAjax();
-                } else {
-                    // Scroll to first error
-                    scrollToFirstError();
-                }
-            });
-            
-            // Reset button
-            $('#resetBtn').on('click', function() {
-                resetForm();
-            });
-            
-            // Real-time validation
-            setupRealTimeValidation();
-            
-            // Other event listeners
-            setupEventListeners();
+    $(document).ready(function() {
+        // Initialize form
+        initializeForm();
+
+        // AJAX Form submission
+        $('#addSuplierForm').on('submit', function(e) {
+            e.preventDefault();
+
+            // Clear previous validations
+            clearAllValidations();
+
+            // Validate form
+            if (validateForm()) {
+                submitFormAjax();
+            } else {
+                // Scroll to first error
+                scrollToFirstError();
+            }
         });
 
-        // AJAX Form Submission Function
-        function submitFormAjax() {
-            // Show loading overlay
-            showLoading();
-            
-            // Disable submit button
-            const $submitBtn = $('#submitBtn');
-            const originalText = $submitBtn.html();
-            $submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Adding User...');
-            
-            // Prepare form data
-            const formData = new FormData($('#addUserForm')[0]);
-            
-            // AJAX request
-            $.ajax({
-                url: 'save_user.php', // Create this new file for AJAX handling
-                type: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                dataType: 'json',
-                timeout: 30000, // 30 seconds timeout
-                success: function(response) {
-                    hideLoading();
-                    $submitBtn.prop('disabled', false).html(originalText);
-                    
-                    if (response.success) {
-                        showSuccessNotification(response.message || 'User added successfully!');
-                        showSuccessModal(response.message || 'User has been successfully added to the system.');
-                        
-                        // Optional: Reset form after success
-                        // resetForm();
-                    } else {
-                        if (response.errors) {
-                            // Show field-specific errors
-                            showFieldErrors(response.errors);
-                        }
-                        
-                        showErrorNotification(response.message || 'Failed to add user. Please try again.');
+        // Reset button
+        $('#resetBtn').on('click', function() {
+            resetForm();
+        });
+
+        // Real-time validation
+        setupRealTimeValidation();
+
+        // Other event listeners
+        setupEventListeners();
+    });
+
+    // AJAX Form Submission Function
+    function submitFormAjax() {
+        // Show loading overlay
+        showLoading();
+
+        // Disable submit button
+        const $submitBtn = $('#submitBtn');
+        const originalText = $submitBtn.html();
+        $submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Adding Supplier...');
+
+        // Prepare form data
+        const formData = new FormData($('#addSuplierForm')[0]);
+
+        // AJAX request
+        $.ajax({
+            url: 'save_suplier.php',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            dataType: 'json',
+            timeout: 30000, // 30 seconds timeout
+            success: function(response) {
+                hideLoading();
+                $submitBtn.prop('disabled', false).html(originalText);
+
+                if (response.success) {
+                    showSuccessNotification(response.message || 'Supplier added successfully!');
+                    showSuccessModal(response.message || 'Supplier has been successfully added to the system.');
+
+                    // Optional: Reset form after success
+                    // resetForm();
+                } else {
+                    if (response.errors) {
+                        // Show field-specific errors
+                        showFieldErrors(response.errors);
                     }
-                },
-                error: function(xhr, status, error) {
-                    hideLoading();
-                    $submitBtn.prop('disabled', false).html(originalText);
-                    
-                    let errorMessage = 'An error occurred while adding the user.';
-                    
-                    if (status === 'timeout') {
-                        errorMessage = 'Request timeout. Please try again.';
-                    } else if (xhr.responseJSON && xhr.responseJSON.message) {
-                        errorMessage = xhr.responseJSON.message;
-                    } else if (xhr.status === 500) {
-                        errorMessage = 'Server error. Please contact administrator.';
-                    } else if (xhr.status === 0) {
-                        errorMessage = 'No internet connection. Please check your connection.';
-                    }
-                    
-                    showErrorNotification(errorMessage);
-                    console.error('AJAX Error:', {
-                        status: xhr.status,
-                        statusText: xhr.statusText,
-                        responseText: xhr.responseText,
-                        error: error
-                    });
+
+                    showErrorNotification(response.message || 'Failed to add user. Please try again.');
                 }
-            });
-        }
-        
-        // Show field-specific errors from server
-        function showFieldErrors(errors) {
-            $.each(errors, function(field, message) {
-                showError(field, message);
-            });
-        }
-        
-        // Loading functions
-        function showLoading() {
-            $('#loadingOverlay').css('display', 'flex');
-            $('body').css('overflow', 'hidden');
-        }
-        
-        function hideLoading() {
-            $('#loadingOverlay').hide();
-            $('body').css('overflow', 'auto');
-        }
-        
-        // Notification functions
-        function showSuccessNotification(message) {
-            showNotification(message, 'success');
-        }
-        
-        function showErrorNotification(message) {
-            showNotification(message, 'danger');
-        }
-        
-        function showWarningNotification(message) {
-            showNotification(message, 'warning');
-        }
-        
-        function showNotification(message, type) {
-            const notificationId = 'notification_' + Date.now();
-            const iconClass = type === 'success' ? 'fas fa-check-circle' : 
-                            type === 'danger' ? 'fas fa-exclamation-circle' : 
-                            'fas fa-exclamation-triangle';
-            
-            const notification = `
+            },
+            error: function(xhr, status, error) {
+                hideLoading();
+                $submitBtn.prop('disabled', false).html(originalText);
+
+                let errorMessage = 'An error occurred while adding the supplier.';
+
+                if (status === 'timeout') {
+                    errorMessage = 'Request timeout. Please try again.';
+                } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                } else if (xhr.status === 500) {
+                    errorMessage = 'Server error. Please contact administrator.';
+                } else if (xhr.status === 0) {
+                    errorMessage = 'No internet connection. Please check your connection.';
+                }
+
+                showErrorNotification(errorMessage);
+                console.error('AJAX Error:', {
+                    status: xhr.status,
+                    statusText: xhr.statusText,
+                    responseText: xhr.responseText,
+                    error: error
+                });
+            }
+        });
+    }
+
+    // Show field-specific errors from server
+    function showFieldErrors(errors) {
+        $.each(errors, function(field, message) {
+            showError(field, message);
+        });
+    }
+
+    // Loading functions
+    function showLoading() {
+        $('#loadingOverlay').css('display', 'flex');
+        $('body').css('overflow', 'hidden');
+    }
+
+    function hideLoading() {
+        $('#loadingOverlay').hide();
+        $('body').css('overflow', 'auto');
+    }
+
+    // Notification functions
+    function showSuccessNotification(message) {
+        showNotification(message, 'success');
+    }
+
+    function showErrorNotification(message) {
+        showNotification(message, 'danger');
+    }
+
+    function showWarningNotification(message) {
+        showNotification(message, 'warning');
+    }
+
+    function showNotification(message, type) {
+        const notificationId = 'notification_' + Date.now();
+        const iconClass = type === 'success' ? 'fas fa-check-circle' :
+            type === 'danger' ? 'fas fa-exclamation-circle' :
+            'fas fa-exclamation-triangle';
+
+        const notification = `
                 <div class="alert alert-${type} alert-dismissible ajax-notification" id="${notificationId}" role="alert">
                     <i class="${iconClass} me-2"></i>
                     ${message}
                     <button type="button" class="btn-close" onclick="hideNotification('${notificationId}')" aria-label="Close"></button>
                 </div>
             `;
-            
-            $('body').append(notification);
-            
-            // Auto-hide after 5 seconds
+
+        $('body').append(notification);
+
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            hideNotification(notificationId);
+        }, 5000);
+    }
+
+    function hideNotification(notificationId) {
+        const $notification = $('#' + notificationId);
+        if ($notification.length) {
+            $notification.addClass('hide');
             setTimeout(() => {
-                hideNotification(notificationId);
-            }, 5000);
+                $notification.remove();
+            }, 300);
         }
-        
-        function hideNotification(notificationId) {
-            const $notification = $('#' + notificationId);
-            if ($notification.length) {
-                $notification.addClass('hide');
-                setTimeout(() => {
-                    $notification.remove();
-                }, 300);
-            }
-        }
-        
-        // Form reset function
-        function resetForm() {
-            $('#addUserForm')[0].reset();
-            clearAllValidations();
-            $('#password-strength').html('');
-            $('#email-suggestions').html('');
-            $('#full_name').focus();
-        }
-        
-        // Clear all validations
-        function clearAllValidations() {
-            $('.form-control, .form-select').removeClass('is-valid is-invalid field-error field-success');
-            $('.error-feedback').hide().text('');
-        }
-        
-        // Scroll to first error
-        function scrollToFirstError() {
-            const $firstError = $('.is-invalid, .field-error').first();
-            if ($firstError.length) {
-                $('html, body').animate({
-                    scrollTop: $firstError.offset().top - 100
-                }, 500);
-                $firstError.focus();
-            }
-        }
-        
-        // Initialize form
-        function initializeForm() {
-            $('#full_name').focus();
-            
-            // Auto-format mobile number
-            $('#mobile').on('input', function() {
-                let value = this.value.replace(/\D/g, '');
-                if (value.length > 10) {
-                    value = value.substring(0, 10);
-                }
-                this.value = value;
-            });
-            
-            // Auto-format NIC
-            $('#nic').on('input', function() {
-                let value = this.value.toUpperCase().replace(/[^0-9VX]/g, '');
-                
-                if (value.includes('V') || value.includes('X')) {
-                    if (value.length > 10) {
-                        value = value.substring(0, 10);
-                    }
-                } else {
-                    if (value.length > 12) {
-                        value = value.substring(0, 12);
-                    }
-                }
-                
-                this.value = value;
-            });
-            
-            // Email formatting
-            $('#email').on('input', function() {
-                this.value = this.value.toLowerCase().trim();
-                $('#email-suggestions').html('');
-            });
-            
-            // Auto-resize textarea
-            $('#address').on('input', function() {
-                this.style.height = 'auto';
-                this.style.height = (this.scrollHeight) + 'px';
-            });
-            
-            // Password toggle
-            $('#togglePassword').on('click', function() {
-                const $passwordInput = $('#password');
-                const $icon = $(this).find('i');
-                
-                if ($passwordInput.attr('type') === 'password') {
-                    $passwordInput.attr('type', 'text');
-                    $icon.removeClass('fa-eye').addClass('fa-eye-slash');
-                } else {
-                    $passwordInput.attr('type', 'password');
-                    $icon.removeClass('fa-eye-slash').addClass('fa-eye');
-                }
-            });
-        }
-        
-        // Setup real-time validation
-        function setupRealTimeValidation() {
-            $('#full_name').on('blur', function() {
-                const validation = validateFullName($(this).val());
-                if (!validation.valid) {
-                    showError('full_name', validation.message);
-                } else {
-                    showSuccess('full_name');
-                }
-            });
-            
-            $('#email').on('blur', function() {
-                const validation = validateEmail($(this).val());
-                if (!validation.valid) {
-                    showError('email', validation.message);
-                } else {
-                    showSuccess('email');
-                }
-                
-                // Show email suggestions
-                const suggestion = suggestEmail($(this).val());
-                if (suggestion && suggestion !== $(this).val().toLowerCase()) {
-                    $('#email-suggestions').html(`Did you mean <a href="#" onclick="$('#email').val('${suggestion}'); $('#email-suggestions').html(''); $('#email').focus();">${suggestion}</a>?`);
-                } else {
-                    $('#email-suggestions').html('');
-                }
-            });
-            
-            $('#password').on('input', function() {
-                checkPasswordStrength($(this).val());
-            }).on('blur', function() {
-                const validation = validatePassword($(this).val());
-                if (!validation.valid) {
-                    showError('password', validation.message);
-                } else {
-                    showSuccess('password');
-                }
-            });
-            
-            $('#mobile').on('blur', function() {
-                const validation = validateMobile($(this).val());
-                if (!validation.valid) {
-                    showError('mobile', validation.message);
-                } else {
-                    showSuccess('mobile');
-                }
-            });
-            
-            $('#nic').on('blur', function() {
-                const validation = validateNIC($(this).val());
-                if (!validation.valid) {
-                    showError('nic', validation.message);
-                } else {
-                    showSuccess('nic');
-                }
-            });
-            
-            $('#address').on('blur', function() {
-                const validation = validateAddress($(this).val());
-                if (!validation.valid) {
-                    showError('address', validation.message);
-                } else {
-                    showSuccess('address');
-                }
-            });
-            
-            $('#role').on('change', function() {
-                const validation = validateRole($(this).val());
-                if (!validation.valid) {
-                    showError('role', validation.message);
-                } else {
-                    showSuccess('role');
-                }
-            });
-        }
-        
-        // Setup other event listeners
-        function setupEventListeners() {
-            // Prevent form submission on Enter key in input fields
-            $('input:not([type="submit"])').on('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const $inputs = $('input, select, textarea');
-                    const currentIndex = $inputs.index(this);
-                    if (currentIndex < $inputs.length - 1) {
-                        $inputs.eq(currentIndex + 1).focus();
-                    }
-                }
-            });
-            
-            // Close modal when clicking outside or pressing Escape
-            $(window).on('click', function(event) {
-                if (event.target === $('#successModal')[0]) {
-                    hideSuccessModal();
-                }
-            });
-            
-            $(document).on('keydown', function(event) {
-                if (event.key === 'Escape') {
-                    hideSuccessModal();
-                }
-            });
-        }
+    }
 
-        // Validation functions (same as before)
-        function validateFullName(name) {
-            if (name.trim() === '') {
-                return { valid: false, message: 'Company name is required' };
-            }
-            if (name.trim().length < 2) {
-                return { valid: false, message: 'Name must be at least 2 characters long' };
-            }
-            if (name.length > 255) {
-                return { valid: false, message: 'Name is too long (maximum 255 characters)' };
-            }
-            if (!/^[a-zA-Z\s.\-']+$/.test(name)) {
-                return { valid: false, message: 'Name can only contain letters, spaces, dots, hyphens, and apostrophes' };
-            }
-            return { valid: true, message: '' };
-        }
+    // Form reset function
+    function resetForm() {
+        $('#addSuplierForm')[0].reset();
+        clearAllValidations();
+        $('#sup_company_name').focus();
+    }
 
-        function validateEmail(email) {
-            if (email.trim() === '') {
-                return { valid: false, message: 'Email address is required' };
-            }
-            if (email.length > 100) {
-                return { valid: false, message: 'Email address is too long (maximum 100 characters)' };
-            }
-            const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-            if (!emailRegex.test(email)) {
-                return { valid: false, message: 'Please enter a valid email address' };
-            }
-            return { valid: true, message: '' };
-        }
+    // Clear all validations
+    function clearAllValidations() {
+        $('.form-control, .form-select').removeClass('is-valid is-invalid field-error field-success');
+        $('.error-feedback').hide().text('');
+    }
 
-        function validatePassword(password) {
-            if (password.trim() === '') {
-                return { valid: false, message: 'Password is required' };
-            }
-            if (password.length < 6) {
-                return { valid: false, message: 'Password must be at least 6 characters long' };
-            }
-            return { valid: true, message: '' };
+    // Scroll to first error
+    function scrollToFirstError() {
+        const $firstError = $('.is-invalid, .field-error').first();
+        if ($firstError.length) {
+            $('html, body').animate({
+                scrollTop: $firstError.offset().top - 100
+            }, 500);
+            $firstError.focus();
         }
+    }
 
-        function validateMobile(mobile) {
-            if (mobile.trim() === '') {
-                return { valid: false, message: 'Mobile number is required' };
-            }
-            const cleanMobile = mobile.replace(/\s+/g, '');
-            const sriLankanMobileRegex = /^(0|94|\+94)?[1-9][0-9]{8}$/;
-            if (!sriLankanMobileRegex.test(cleanMobile)) {
-                return { valid: false, message: 'Please enter a valid Sri Lankan mobile number (e.g., 0771234567)' };
-            }
-            return { valid: true, message: '' };
-        }
+    // Initialize form
+    function initializeForm() {
+        $('#sup_company_name').focus();
 
-        function validateNIC(nic) {
-            if (nic.trim() === '') {
-                return { valid: false, message: 'NIC number is required' };
+        // Auto-format mobile number
+        $('#mobile').on('input', function() {
+            let value = this.value.replace(/\D/g, '');
+            if (value.length > 10) {
+                value = value.substring(0, 10);
             }
-            const cleanNIC = nic.trim().toUpperCase();
-            const oldNICRegex = /^\d{9}[VX]$/;
-            const newNICRegex = /^\d{12}$/;
-            
-            if (!oldNICRegex.test(cleanNIC) && !newNICRegex.test(cleanNIC)) {
-                return { valid: false, message: 'Please enter a valid Sri Lankan NIC (e.g., 123456789V or 123456789012)' };
-            }
-            return { valid: true, message: '' };
-        }
+            this.value = value;
+        });
 
-        function validateAddress(address) {
-            if (address.trim() === '') {
-                return { valid: false, message: 'Address is required' };
-            }
-            if (address.trim().length < 5) {
-                return { valid: false, message: 'Address must be at least 5 characters long' };
-            }
-            if (address.length > 500) {
-                return { valid: false, message: 'Address is too long (maximum 500 characters)' };
-            }
-            return { valid: true, message: '' };
-        }
+        // Auto-resize textarea
+        $('#address').on('input', function() {
+        });
+    }
 
-        function validateRole(role) {
-            if (role.trim() === '') {
-                return { valid: false, message: 'Role selection is required' };
+    // Setup real-time validation
+    function setupRealTimeValidation() {
+        $('#sup_company_name').on('blur', function() {
+            const validation = validateCompanyName($(this).val());
+            if (!validation.valid) {
+                showError('sup_company_name', validation.message);
+            } else {
+                showSuccess('sup_company_name');
             }
-            const validRoles = ['admin', 'moderator', 'user'];
-            if (!validRoles.includes(role)) {
-                return { valid: false, message: 'Please select a valid role' };
-            }
-            return { valid: true, message: '' };
-        }
+        });
 
-        // Email suggestion function
-        function suggestEmail(email) {
-            if (!email || email.trim() === '' || !email.includes('@')) {
-                return null;
+        $('#person_name').on('blur', function() {
+            const validation = validatePersonName($(this).val());
+            if (!validation.valid) {
+                showError('person_name', validation.message);
+            } else {
+                showSuccess('person_name');
             }
-            
-            const parts = email.split('@');
-            const username = parts[0];
-            const domain = parts[1].toLowerCase();
-            
-            const typos = {
-                'gamil.com': 'gmail.com',
-                'gmail.co': 'gmail.com',
-                'gmail.cm': 'gmail.com',
-                'gmal.com': 'gmail.com',
-                'yahooo.com': 'yahoo.com',
-                'yaho.com': 'yahoo.com',
-                'yahoo.co': 'yahoo.com',
-                'hotmai.com': 'hotmail.com',
-                'hotmail.co': 'hotmail.com',
-                'outlok.com': 'outlook.com',
-                'outlook.co': 'outlook.com'
+        });
+
+        $('#mobile').on('blur', function() {
+            const validation = validateMobile($(this).val());
+            if (!validation.valid) {
+                showError('mobile', validation.message);
+            } else {
+                showSuccess('mobile');
+            }
+        });
+
+        $('#address').on('blur', function() {
+            const validation = validateAddress($(this).val());
+            if (!validation.valid) {
+                showError('address', validation.message);
+            } else {
+                showSuccess('address');
+            }
+        });
+    }
+
+    // Setup other event listeners
+    function setupEventListeners() {
+        // Prevent form submission on Enter key in input fields
+        $('input:not([type="submit"])').on('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const $inputs = $('input, select, textarea');
+                const currentIndex = $inputs.index(this);
+                if (currentIndex < $inputs.length - 1) {
+                    $inputs.eq(currentIndex + 1).focus();
+                }
+            }
+        });
+
+        // Close modal when clicking outside or pressing Escape
+        $(window).on('click', function(event) {
+            if (event.target === $('#successModal')[0]) {
+                hideSuccessModal();
+            }
+        });
+
+        $(document).on('keydown', function(event) {
+            if (event.key === 'Escape') {
+                hideSuccessModal();
+            }
+        });
+    }
+
+    // Validation functions (same as before)
+    function validateCompanyName(name) {
+        if (name.trim() === '') {
+            return {
+                valid: false,
+                message: 'Company name is required'
             };
-            
-            if (typos[domain]) {
-                return username + '@' + typos[domain];
-            }
-            
-            return null;
         }
-
-        // Show/hide error functions
-        function showError(fieldId, message) {
-            const $field = $('#' + fieldId);
-            const $errorDiv = $('#' + fieldId + '-error');
-            
-            if ($field.length && $errorDiv.length) {
-                $field.addClass('is-invalid field-error').removeClass('is-valid field-success');
-                $errorDiv.text(message).show();
-            }
+        if (name.trim().length < 2) {
+            return {
+                valid: false,
+                message: 'Name must be at least 2 characters long'
+            };
         }
-
-        function showSuccess(fieldId) {
-            const $field = $('#' + fieldId);
-            const $errorDiv = $('#' + fieldId + '-error');
-            
-            if ($field.length && $errorDiv.length) {
-                $field.addClass('is-valid field-success').removeClass('is-invalid field-error');
-                $errorDiv.hide();
-            }
+        if (name.length > 255) {
+            return {
+                valid: false,
+                message: 'Name is too long (maximum 255 characters)'
+            };
         }
-
-        function clearValidation(fieldId) {
-            const $field = $('#' + fieldId);
-            const $errorDiv = $('#' + fieldId + '-error');
-            
-            if ($field.length && $errorDiv.length) {
-                $field.removeClass('is-valid is-invalid field-error field-success');
-                $errorDiv.hide();
-            }
+        if (!/^[a-zA-Z0-9\s.\-']+$/.test(name)) {
+            return {
+                valid: false,
+                message: 'Name can only contain letters, spaces, dots, hyphens, and apostrophes'
+            };
         }
+        return {
+            valid: true,
+            message: ''
+        };
+    }
 
-        // Form validation
-        function validateForm() {
-            let isValid = true;
-            
-            // Get all field values
-            const fullName = $('#full_name').val();
-            const email = $('#email').val();
-            const password = $('#password').val();
-            const mobile = $('#mobile').val();
-            const nic = $('#nic').val();
-            const address = $('#address').val();
-            const role = $('#role').val();
-            
-            // Validate required fields
-            const validations = [
-                { field: 'full_name', validator: validateFullName, value: fullName },
-                { field: 'email', validator: validateEmail, value: email },
-                { field: 'password', validator: validatePassword, value: password },
-                { field: 'mobile', validator: validateMobile, value: mobile },
-                { field: 'nic', validator: validateNIC, value: nic },
-                { field: 'address', validator: validateAddress, value: address },
-                { field: 'role', validator: validateRole, value: role }
-            ];
-            
-            validations.forEach(function(validation) {
-                const result = validation.validator(validation.value);
-                if (!result.valid) {
-                    showError(validation.field, result.message);
-                    isValid = false;
-                } else {
-                    showSuccess(validation.field);
-                }
-            });
-            
-            return isValid;
+    function validatePersonName(name) {
+        if (name.trim() === '') {
+            return {
+                valid: false,
+                message: 'Responsibility person name is required'
+            };
         }
-
-        // Success modal functions
-        function showSuccessModal(message) {
-            const $modal = $('#successModal');
-            const $messageElement = $('#successMessage');
-            
-            if (message) {
-                $messageElement.text(message);
-            }
-            
-            $modal.show();
-            $('body').css('overflow', 'hidden');
+        if (name.trim().length < 2) {
+            return {
+                valid: false,
+                message: 'Name must be at least 2 characters long'
+            };
         }
-
-        function hideSuccessModal() {
-            const $modal = $('#successModal');
-            $modal.hide();
-            $('body').css('overflow', 'auto');
+        if (!/^[a-zA-Z\s.\-']+$/.test(name)) {
+            return {
+                valid: false,
+                message: 'Person name can only contain letters and basic punctuation'
+            };
         }
+        return {
+            valid: true,
+            message: ''
+        };
+    }
 
-        function addAnotherUser() {
-            hideSuccessModal();
-            resetForm();
+    function validateMobile(mobile) {
+        if (mobile.trim() === '') {
+            return {
+                valid: false,
+                message: 'Mobile number is required'
+            };
         }
-
-        function viewAllUsers() {
-            hideSuccessModal();
-            window.location.href = 'users.php';
+        const cleanMobile = mobile.replace(/\s+/g, '');
+        const sriLankanMobileRegex = /^(0|94|\+94)?[1-9][0-9]{8}$/;
+        if (!sriLankanMobileRegex.test(cleanMobile)) {
+            return {
+                valid: false,
+                message: 'Please enter a valid Sri Lankan mobile number (e.g., 0771234567)'
+            };
         }
+        return {
+            valid: true,
+            message: ''
+        };
+    }
 
-        function showNotification(message, type) {
-    const notificationId = 'notification_' + Date.now();
-    // Map your types to Bootstrap alert classes
-    const alertClasses = {
-        'success': 'alert-success',
-        'danger': 'alert-danger',
-        'warning': 'alert-warning'
-    };
+    function validateAddress(address) {
+        if (address.trim() === '') {
+            return {
+                valid: false,
+                message: 'Address is required'
+            };
+        }
+        if (address.trim().length < 5) {
+            return {
+                valid: false,
+                message: 'Address must be at least 5 characters long'
+            };
+        }
+        if (address.length > 500) {
+            return {
+                valid: false,
+                message: 'Address is too long (maximum 500 characters)'
+            };
+        }
+        return {
+            valid: true,
+            message: ''
+        };
+    }
+
     
-    const iconClass = type === 'success' ? 'fas fa-check-circle' : 
-                    type === 'danger' ? 'fas fa-exclamation-circle' : 
-                    'fas fa-exclamation-triangle';
-    
-    const notification = `
+
+    // Show/hide error functions
+    function showError(fieldId, message) {
+        const $field = $('#' + fieldId);
+        const $errorDiv = $('#' + fieldId + '-error');
+
+        if ($field.length && $errorDiv.length) {
+            $field.addClass('is-invalid field-error').removeClass('is-valid field-success');
+            $errorDiv.text(message).show();
+        }
+    }
+
+    function showSuccess(fieldId) {
+        const $field = $('#' + fieldId);
+        const $errorDiv = $('#' + fieldId + '-error');
+
+        if ($field.length && $errorDiv.length) {
+            $field.addClass('is-valid field-success').removeClass('is-invalid field-error');
+            $errorDiv.hide();
+        }
+    }
+
+    function clearValidation(fieldId) {
+        const $field = $('#' + fieldId);
+        const $errorDiv = $('#' + fieldId + '-error');
+
+        if ($field.length && $errorDiv.length) {
+            $field.removeClass('is-valid is-invalid field-error field-success');
+            $errorDiv.hide();
+        }
+    }
+
+    // Form validation
+    function validateForm() {
+        let isValid = true;
+
+        // Get all field values
+        const companyName = $('#sup_company_name').val();
+        const personName = $('#person_name').val();
+        const mobile = $('#mobile').val();
+        const address = $('#address').val();
+
+        // Validate required fields
+        const validations = [{
+                field: 'sup_company_name',
+                validator: validateCompanyName,
+                value: companyName
+            },
+            {
+                field: 'person_name',
+                validator: validatePersonName,
+                value: personName
+            },
+            {
+                field: 'mobile',
+                validator: validateMobile,
+                value: mobile
+            },
+            {
+                field: 'address',
+                validator: validateAddress,
+                value: address
+            }
+        ];
+
+        validations.forEach(function(validation) {
+            const result = validation.validator(validation.value);
+            if (!result.valid) {
+                showError(validation.field, result.message);
+                isValid = false;
+            } else {
+                showSuccess(validation.field);
+            }
+        });
+
+        return isValid;
+    }
+
+    // Success modal functions
+    function showSuccessModal(message) {
+        const $modal = $('#successModal');
+        const $messageElement = $('#successMessage');
+
+        if (message) {
+            $messageElement.text(message);
+        }
+
+        $modal.show();
+        $('body').css('overflow', 'hidden');
+    }
+
+    function hideSuccessModal() {
+        const $modal = $('#successModal');
+        $modal.hide();
+        $('body').css('overflow', 'auto');
+    }
+
+    function addAnotherSupplier() {
+        hideSuccessModal();
+        resetForm();
+    }
+
+    function viewAllSuppliers() {
+        hideSuccessModal();
+        window.location.href = 'suplier_list.php';
+    }
+
+    function showNotification(message, type) {
+        const notificationId = 'notification_' + Date.now();
+        // Map your types to Bootstrap alert classes
+        const alertClasses = {
+            'success': 'alert-success',
+            'danger': 'alert-danger',
+            'warning': 'alert-warning'
+        };
+
+        const iconClass = type === 'success' ? 'fas fa-check-circle' :
+            type === 'danger' ? 'fas fa-exclamation-circle' :
+            'fas fa-exclamation-triangle';
+
+        const notification = `
         <div class="alert ${alertClasses[type]} alert-dismissible fade show ajax-notification" id="${notificationId}" role="alert">
             <div class="d-flex align-items-center">
                 <i class="${iconClass} me-2"></i>
@@ -886,15 +812,16 @@
             <button type="button" class="btn-close" onclick="hideNotification('${notificationId}')" aria-label="Close"></button>
         </div>
     `;
-    
-    $('body').append(notification);
-    
-    // Auto-hide after 5 seconds
-    setTimeout(() => {
-        hideNotification(notificationId);
-    }, 5000);
-}
+
+        $('body').append(notification);
+
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            hideNotification(notificationId);
+        }, 5000);
+    }
     </script>
 
 </body>
+
 </html>

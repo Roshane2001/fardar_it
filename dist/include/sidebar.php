@@ -211,13 +211,13 @@ if (!function_exists('get_logo_with_fallback')) {
         $is_admin = false;
         
         // Check if role_id exists in session
-        if (isset($_SESSION['user_role_id'])) {
-            $is_admin = ($_SESSION['user_role_id'] == 1);
+        if (isset($_SESSION['role_id'])) {
+            $is_admin = ($_SESSION['role_id'] == 1);
         }
         
         // If no role in session, check database directly
         if (!$is_admin && isset($_SESSION['user_id']) && isset($conn) && $conn) {
-            $user_id = mysqli_real_escape_string($conn, $_SESSION['user_id']);
+            $user_id = (int)$_SESSION['user_id'];
             $role_check_query = "SELECT u.role_id, r.name as role_name 
                                FROM users u 
                                LEFT JOIN roles r ON u.role_id = r.id 
@@ -276,17 +276,17 @@ if (!function_exists('get_logo_with_fallback')) {
 
         <li class="pc-item pc-hasmenu">
           <a href="#!" class="pc-link">
-            <span class="pc-micon"> <i data-feather="package"></i></span>
+            <span class="pc-micon"><i data-feather="shopping-cart"></i></span>
             <span class="pc-mtext">Supliers</span>
             <span class="pc-arrow"><i class="ti ti-chevron-right"></i></span>
           </a>
           <ul class="pc-submenu">
-            <li class="pc-item"><a class="pc-link" href="../suplier/add_suplier.php">Add New Suplier</a></li>
+            <li class="pc-item"><a class="pc-link" href="../suplier/suplier_add.php">Add New Suplier</a></li>
             <li class="pc-item"><a class="pc-link" href="../suplier/suplier_list.php">All Supliers</a></li>           
           </ul>
         </li>
 
-        <li class="pc-item pc-caption">
+        <!--<li class="pc-item pc-caption">
           <label>Lead Management</label>
           <i data-feather="target"></i>
         </li>
@@ -299,13 +299,13 @@ if (!function_exists('get_logo_with_fallback')) {
           </a>
           <ul class="pc-submenu">
             <li class="pc-item"><a class="pc-link" href="../leads/lead_upload.php">Lead Upload</a></li>
-            <?php if ($is_admin == 1): ?>
+            ?php if ($is_admin == 1): ?>
             <li class="pc-item"><a class="pc-link" href="../leads/lead_list.php">Lead List</a></li>
-            <?php endif; ?>
+            ?php endif; ?>
             <li class="pc-item"><a class="pc-link" href="../leads/my_leads.php">My Leads </a></li>
             <li class="pc-item"><a class="pc-link" href="../leads/city_list.php">City List</a></li>
           </ul>
-        </li>
+        </li>-->
         
         <?php if ($is_admin == 1): ?>
         <li class="pc-item pc-caption">

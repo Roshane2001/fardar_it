@@ -271,10 +271,11 @@ function getStatusInfo($is_default) {
                                                         data-courier-id="<?= $row['courier_id'] ?>"
                                                         data-courier-name="<?= htmlspecialchars($row['courier_name']) ?>"
                                                         data-current-status="<?= $row['is_default'] ?>">
-                                                    <option value="0" <?= $row['is_default'] == 0 ? 'selected' : '' ?>>None</option>
-                                                    <option value="1" <?= $row['is_default'] == 1 ? 'selected' : '' ?>>Default Courier</option>
-                                                    <option value="2" <?= $row['is_default'] == 2 ? 'selected' : '' ?>>API Parcel Courier</option>
                                                     <option value="3" <?= $row['is_default'] == 3 ? 'selected' : '' ?>>Existing API Parcel</option>
+                                                    <option value="0" <?= $row['is_default'] == 0 ? 'selected' : '' ?>>None</option>
+                                                    <!--<option value="1" <?= $row['is_default'] == 1 ? 'selected' : '' ?>>Default Courier</option>
+                                                    <option value="2" <?= $row['is_default'] == 2 ? 'selected' : '' ?>>API Parcel Courier</option>-->
+                                                    
                                                 </select>
                                               <?php if ($row['has_api_new'] == 1 || $row['has_api_existing'] == 1): ?>
                                                             <button class="add-api-btn" 

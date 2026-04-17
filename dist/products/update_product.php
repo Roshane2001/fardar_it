@@ -117,14 +117,14 @@ try {
     }
 
     // Validate product code
-    if (empty($product_code)) {
-        $errors['product_code'] = 'Product code is required';
-    } elseif (strlen($product_code) < 2) {
-        $errors['product_code'] = 'Product code must be at least 2 characters long';
-    } elseif (strlen($product_code) > 50) {
-        $errors['product_code'] = 'Product code is too long (maximum 50 characters)';
-    } elseif (!preg_match('/^[a-zA-Z0-9\-_]+$/', $product_code)) {
-        $errors['product_code'] = 'Product code can only contain letters, numbers, hyphens, and underscores';
+    if (!empty($product_code)) {
+        if (strlen($product_code) < 2) {
+            $errors['product_code'] = 'Product code must be at least 2 characters long';
+        } elseif (strlen($product_code) > 50) {
+            $errors['product_code'] = 'Product code is too long (maximum 50 characters)';
+        } elseif (!preg_match('/^[a-zA-Z0-9\-_]+$/', $product_code)) {
+            $errors['product_code'] = 'Product code can only contain letters, numbers, hyphens, and underscores';
+        }
     }
 
     // ⭐ MAKE DESCRIPTION **REQUIRED**
