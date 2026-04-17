@@ -80,6 +80,10 @@ try {
     $lkr_price = sanitizeInput($_POST['lkr_price'] ?? '');
     $product_code = sanitizeInput($_POST['product_code'] ?? '');
     $description = sanitizeInput($_POST['description'] ?? '');
+
+    // Get Asset and Serial numbers from the dynamic table
+    $asset_nos = $_POST['asset_nos'] ?? [];
+    $serial_nos = $_POST['serial_nos'] ?? [];
     
     // Default values for stock if inventory
     $allow_inventory = isset($_SESSION['allow_inventory']) && $_SESSION['allow_inventory'] == 1;

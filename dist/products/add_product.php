@@ -324,10 +324,10 @@ try {
 
                                 <div class="product-form-group">
                                     <label for="product_code" class="form-label">
-                                        <i class="fas fa-barcode"></i> Asset No
+                                        <i class="fas fa-barcode"></i> Product Code
                                     </label>
                                     <input type="text" class="form-control" id="product_code" name="product_code"
-                                        placeholder="Enter asset no (optional)" maxlength="50">
+                                        placeholder="Enter product code (optional)" maxlength="50">
                                     <div class="error-feedback" id="product_code-error"></div>
                                     <div class="code-hint">Unique identifier for the product</div>
                                     
@@ -347,6 +347,34 @@ try {
                                 </div>
                             </div>
 
+                            <!-- Asset and Serial Numbers Table -->
+                            <div class="form-row">
+                                <div class="product-form-group full-width">
+                                    <label class="form-label">
+                                        <i class="fas fa-list-ol"></i> Item Asset & Serial Numbers
+                                    </label>
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered table-hover" id="assetSerialTable">
+                                            <thead class="bg-light">
+                                                <tr>
+                                                    <th style="width: 45%;">Asset No</th>
+                                                    <th style="width: 45%;">Serial No</th>
+                                                    <th style="width: 10%; text-align: center;">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <!-- Rows will be added dynamically -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="mt-2 text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="addAssetRow">
+                                            <i class="fas fa-plus-circle"></i> Add Item Row
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- New Row: Stock Quantity and Low Stock Threshold - only if enabled -->
                             <?php if (isset($_SESSION['allow_inventory']) && $_SESSION['allow_inventory'] == 1): ?>
                             <div class="form-row">
@@ -355,7 +383,7 @@ try {
                                         <i class="fas fa-cubes"></i> Stock Quantity<span class="required">*</span>
                                     </label>
                                     <input type="number" class="form-control" id="stock_quantity" name="stock_quantity"
-                                        placeholder="0" required min="0" step="1" value="0">
+                                        placeholder="0" required min="0" step="1" value="0" readonly>
                                     <div class="error-feedback" id="stock_quantity-error"></div>
                                     <div class="code-hint">Initial stock level</div>
                                 </div>
@@ -371,7 +399,7 @@ try {
                                 </div>
                             </div>
                             <?php else: ?>
-                            <input type="hidden" name="stock_quantity" value="0">
+                            <input type="hidden" id="stock_quantity" name="stock_quantity" value="0">
                             <input type="hidden" name="low_stock_threshold" value="0">
                             <?php endif; ?>
 
@@ -474,6 +502,16 @@ try {
             
             // Other event listeners
             setupEventListeners();
+
+            // Asset & Serial Table Handlers
+            $('#addAssetRow').on('click', function() {
+                addAssetRow();
+            });
+            
+            $(document).on('click', '.remove-asset-row', function() {
+                $(this).closest('tr').remove();
+                updateStockQuantityFromTable();
+            });
         });
 
         // AJAX Form Submission Function
@@ -620,6 +658,10 @@ try {
             $('#sub_category_id').html('<option value="">Select sub category</option>');
             $('#category_id').val('');
             
+            // Reset Asset Table
+            $('#assetSerialTable tbody').empty();
+            addAssetRow();
+            
             // Refresh Select2
             $('#main_category_id, #sub_category_id, #status').trigger('change');
             
@@ -649,6 +691,7 @@ try {
         function initializeForm() {
             $('#name').focus();
             updateCharCount();
+            addAssetRow(); // Initialize with one row
         }
         
         // Setup real-time validation
@@ -758,6 +801,28 @@ try {
                     }
                 }
             });
+        }
+
+        function addAssetRow() {
+            const rowHtml = `
+                <tr>
+                    <td><input type="text" name="asset_nos[]" class="form-control form-control-sm" placeholder="Enter Asset No"></td>
+                    <td><input type="text" name="serial_nos[]" class="form-control form-control-sm" placeholder="Enter Serial No"></td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-link text-danger remove-asset-row"><i class="fas fa-trash-alt"></i></button>
+                    </td>
+                </tr>
+            `;
+            $('#assetSerialTable tbody').append(rowHtml);
+            updateStockQuantityFromTable();
+        }
+
+        function updateStockQuantityFromTable() {
+            const $stockQty = $('#stock_quantity');
+            if ($stockQty.length) {
+                const count = $('#assetSerialTable tbody tr').length;
+                $stockQty.val(count);
+            }
         }
 
         // Character counter for description

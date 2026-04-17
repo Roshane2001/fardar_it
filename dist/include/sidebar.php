@@ -274,17 +274,7 @@ if (!function_exists('get_logo_with_fallback')) {
           </ul>
         </li>
 
-        <li class="pc-item pc-hasmenu">
-          <a href="#!" class="pc-link">
-            <span class="pc-micon"><i data-feather="shopping-cart"></i></span>
-            <span class="pc-mtext">Supliers</span>
-            <span class="pc-arrow"><i class="ti ti-chevron-right"></i></span>
-          </a>
-          <ul class="pc-submenu">
-            <li class="pc-item"><a class="pc-link" href="../suplier/suplier_add.php">Add New Suplier</a></li>
-            <li class="pc-item"><a class="pc-link" href="../suplier/suplier_list.php">All Supliers</a></li>           
-          </ul>
-        </li>
+
 
         <!--<li class="pc-item pc-caption">
           <label>Lead Management</label>

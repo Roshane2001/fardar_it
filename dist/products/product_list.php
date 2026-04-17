@@ -295,7 +295,7 @@ $result = $conn->query($sql);
                                 <th>ID</th>
                                 <th>Product Name</th>
                                 <th>Category</th>
-                                <th>Asset No</th>  <!--<th>Asset No</th>-->
+                                <th>Product Code</th>  
                                 <!-- <th>Description</th> -->
                                 <th>Price (LKR)</th>
                                 <?php if (isset($_SESSION['allow_inventory']) && $_SESSION['allow_inventory'] == 1): ?>

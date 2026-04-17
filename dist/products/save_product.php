@@ -55,6 +55,10 @@ try {
     $product_code = sanitizeInput($_POST['product_code'] ?? '');
     $description = sanitizeInput($_POST['description'] ?? '');
     
+    // Get Asset and Serial numbers from the dynamic table
+    $asset_nos = $_POST['asset_nos'] ?? [];
+    $serial_nos = $_POST['serial_nos'] ?? [];
+    
     // Default values for stock if inventory management is disabled
     $allow_inventory = isset($_SESSION['allow_inventory']) && $_SESSION['allow_inventory'] == 1;
     $stock_quantity = $allow_inventory ? intval($_POST['stock_quantity'] ?? 0) : 0;
@@ -125,11 +129,31 @@ try {
     if ($insertStmt->execute()) {
         $product_id = $conn->insert_id;
 
+        // Insert individual item data into stock_data table
+        if (!empty($asset_nos)) {
+            $stockSql = "INSERT INTO stock_data (product_id, asset_no, serial_no, status) VALUES (?, ?, ?, 'Available')";
+            $stockStmt = $conn->prepare($stockSql);
+            
+            if ($stockStmt) {
+                foreach ($asset_nos as $index => $asset_no) {
+                    $asset_val = sanitizeInput($asset_no);
+                    $serial_val = sanitizeInput($serial_nos[$index] ?? '');
+                    
+                    // Only insert if at least one field is provided
+                    if (!empty($asset_val) || !empty($serial_val)) {
+                        $stockStmt->bind_param("iss", $product_id, $asset_val, $serial_val);
+                        $stockStmt->execute();
+                    }
+                }
+                $stockStmt->close();
+            }
+        }
+
         // Log the action in user_logs table
         if (isset($_SESSION['user_id'])) {
             $user_id = $_SESSION['user_id'];
             $action_type = 'product_create';
-            $details = "New product created - Name: {$name}, Code: {$product_code}, Price: LKR {$lkr_price}, Status: {$status}, Stock: {$stock_quantity}, Threshold: {$low_stock_threshold}, Category ID: {$category_id}, Supplier ID: {$suplier_id}";
+            $details = "New product created with " . count($asset_nos) . " items - Name: {$name}, Code: {$product_code}, Price: LKR {$lkr_price}, Status: {$status}, Stock: {$stock_quantity}";
 
             $logQuery = "INSERT INTO user_logs (user_id, action_type, inquiry_id, details) 
                          VALUES (?, ?, ?, ?)";
